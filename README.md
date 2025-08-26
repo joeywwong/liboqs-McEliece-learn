@@ -103,9 +103,12 @@ Added elements (inside `#ifdef OQS_MEASURE_E_RANDOMNESS`):
 		* Aggregates: min / max index frequency, number of zero‑hit indices, total restarts.
 		* Computes a Pearson chi‑square statistic:
 
-$$\chi^{2} = \sum_{i=0}^{\mathrm{SYS\_N}-1} \frac{(f_i - E)^2}{E}$$
+		$$\chi^{2} = \sum_{i=0}^{\mathrm{SYS\_N}-1} \frac{(f_i - E)^2}{E}$$
 
-where $E = \text{samples}\cdot \text{SYS\_T}/\text{SYS\_N}$ (df = $\mathrm{SYS\_N}-1$).
+		where `E = samples * SYS_T / SYS_N`
+
+		(df = $\mathrm{SYS\_N}-1$).
+
 		* Emits a single summary line to `stderr` with these values.
 
 Snippet of added usage points (conceptually):
