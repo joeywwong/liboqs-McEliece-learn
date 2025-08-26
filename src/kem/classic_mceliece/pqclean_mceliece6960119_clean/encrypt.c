@@ -10,6 +10,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef OQS_MEASURE_E_RANDOMNESS
+#include <inttypes.h>
+#endif
 
 #include "crypto_declassify.h"
 #include "crypto_uint16.h"
@@ -90,11 +93,24 @@ static void gen_e(unsigned char *e) {
         if (eq == 0) {
             break;
         }
+#ifdef OQS_MEASURE_E_RANDOMNESS
+        else {
+            /* Count how many times we had to restart due to duplicate indices */
+            extern void oqs_mceliece_record_e_restart(void);
+            oqs_mceliece_record_e_restart();
+        }
+#endif
     }
 
     for (j = 0; j < SYS_T; j++) {
         val[j] = 1 << (ind[j] & 7);
     }
+
+#ifdef OQS_MEASURE_E_RANDOMNESS
+    /* Record index frequencies for randomness analysis */
+    extern void oqs_mceliece_record_e_indices(const uint16_t *ind, int count);
+    oqs_mceliece_record_e_indices(ind, SYS_T);
+#endif
 
     for (i = 0; i < SYS_N / 8; i++) {
         e[i] = 0;
@@ -155,3 +171,46 @@ void encrypt(unsigned char *s, const unsigned char *pk, unsigned char *e) {
 
     syndrome(s, pk, e);
 }
+
+#ifdef OQS_MEASURE_E_RANDOMNESS
+/* ---------------- Randomness instrumentation ---------------- */
+static uint64_t e_index_frequency[SYS_N];
+static uint64_t e_sample_count = 0;
+static uint64_t e_restart_count = 0;
+
+void oqs_mceliece_record_e_indices(const uint16_t *ind, int count) {
+    for (int i = 0; i < count; i++) {
+        uint16_t idx = ind[i];
+        if (idx < SYS_N) {
+            e_index_frequency[idx]++;
+        }
+    }
+    e_sample_count++;
+}
+
+void oqs_mceliece_record_e_restart(void) {
+    e_restart_count++;
+}
+
+/* Call this after many encrypt() calls to dump statistics to stderr. */
+void oqs_mceliece_dump_e_randomness_stats(void) {
+    if (e_sample_count == 0) {
+        fprintf(stderr, "[e-rand] No samples collected.\n");
+        return;
+    }
+    double expected = (double)e_sample_count * (double)SYS_T / (double)SYS_N;
+    uint64_t minf = UINT64_MAX, maxf = 0, zeros = 0;
+    long double chisq = 0.0L;
+    for (int i = 0; i < SYS_N; i++) {
+        uint64_t f = e_index_frequency[i];
+        if (f < minf) minf = f;
+        if (f > maxf) maxf = f;
+        if (f == 0) zeros++;
+        long double diff = (long double)f - (long double)expected;
+        chisq += (diff * diff) / (long double)expected;
+    }
+    fprintf(stderr,
+            "[e-rand] samples=%" PRIu64 ", restarts=%" PRIu64 ", expected_per_index=%.2f, min=%" PRIu64 ", max=%" PRIu64 ", zeros=%" PRIu64 ", chi^2=%.2Lf (df=%d)\n",
+            e_sample_count, e_restart_count, expected, minf == UINT64_MAX ? 0 : minf, maxf, zeros, chisq, SYS_N - 1);
+}
+#endif /* OQS_MEASURE_E_RANDOMNESS */
