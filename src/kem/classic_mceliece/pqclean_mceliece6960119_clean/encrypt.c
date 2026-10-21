@@ -200,17 +200,24 @@ void oqs_mceliece_dump_e_randomness_stats(void) {
     }
     double expected = (double)e_sample_count * (double)SYS_T / (double)SYS_N;
     uint64_t minf = UINT64_MAX, maxf = 0, zeros = 0;
-    long double chisq = 0.0L;
+    long double chisq_raw = 0.0L;
     for (int i = 0; i < SYS_N; i++) {
         uint64_t f = e_index_frequency[i];
         if (f < minf) minf = f;
         if (f > maxf) maxf = f;
         if (f == 0) zeros++;
         long double diff = (long double)f - (long double)expected;
-        chisq += (diff * diff) / (long double)expected;
+        chisq_raw += (diff * diff) / (long double)expected;
     }
+    /* Independent uniform weight-t samples have E[chi2_raw] = n-t.
+     * Coordinate dependence requires this scaling before an asymptotic
+     * chi-square comparison with n-1 degrees of freedom. This is not an
+     * exact finite-sample distribution or a test of cryptographic security.
+     */
+    long double chisq_adjusted = chisq_raw * (SYS_N - 1) / (SYS_N - SYS_T);
+    /* Print doubles for compatibility with C runtimes lacking %Lf support. */
     fprintf(stderr,
-            "[e-rand] samples=%" PRIu64 ", restarts=%" PRIu64 ", expected_per_index=%.2f, min=%" PRIu64 ", max=%" PRIu64 ", zeros=%" PRIu64 ", chi^2=%.2Lf (df=%d)\n",
-            e_sample_count, e_restart_count, expected, minf == UINT64_MAX ? 0 : minf, maxf, zeros, chisq, SYS_N - 1);
+            "[e-rand] samples=%" PRIu64 ", restarts=%" PRIu64 ", expected_per_index=%.2f, min=%" PRIu64 ", max=%" PRIu64 ", zeros=%" PRIu64 ", chi2_raw=%.2f, expected_chi2_raw=%d, chi2_adjusted=%.2f (asymptotic_df=%d)\n",
+            e_sample_count, e_restart_count, expected, minf == UINT64_MAX ? 0 : minf, maxf, zeros, (double)chisq_raw, SYS_N - SYS_T, (double)chisq_adjusted, SYS_N - 1);
 }
 #endif /* OQS_MEASURE_E_RANDOMNESS */

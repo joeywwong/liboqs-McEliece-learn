@@ -1,149 +1,115 @@
 ## Classic McEliece / Niederreiter Overview
 
-This fork focuses on the McEliece scheme, the variant Niederreiter cryptosystem, the Fujisaki–Okamoto (FO) transform, the Classic McEliece KEM structure, and notes on randomness.
+This fork adds background on McEliece, Niederreiter, the Classic McEliece KEM, and experimental randomness measurements. The generator-matrix examples below explain the original cryptosystems; Classic McEliece uses a systematic parity-check matrix.
 
 ### Summary
-- McEliece & Niederreiter base: OW‑CPA hard decoding problem on binary Goppa codes.
-- Classic McEliece KEM: applies FO transform + implicit rejection ⇒ IND‑CCA2.
-- Randomness analysis of $e$ is done as a lightweight statistical sanity checks.
-- Randomness analysis of the hash function used for the Fujisaki-Okamoto transform pending. 
-- Formal validation (e.g., NIST STS, Dieharder) and side‑channel analysis pending.
+
+- McEliece / Niederreiter one-wayness relies on the difficulty of recovering a random error of the prescribed weight for the generated binary Goppa codes.
+- Classic McEliece uses a specific FO-like KEM construction with implicit rejection; its IND-CCA2 analysis is conditional on cryptographic assumptions and the ROM / QROM model.
+- Measurements of `e` are statistical sanity checks, not security proofs or formal verification. Statistical hash-output testing and side-channel analysis are separate work.
 
 ### 1. McEliece Cryptosystem
-Consider some efficiently decodable family of $[n, k]$-codes $\mathcal{C}$ correcting $t$ errors. In the context of McEliece encryption, this family usually consists of so-called Goppa
-codes. Let $\mathbb{F}_2$ be the binary field and $\mathbb{F}_{2^m}$ an extension field. A binary Goppa code $\mathcal{C}$ is defined by a Goppa polynomial $g(x) \in \mathbb{F}_{2^m}[x]$ of degree $r$ and a support set $L = (\alpha_1,\ldots,\alpha_n) \subseteq \mathbb{F}_{2^m}$ with $g(\alpha_i) \neq 0$. A generator matrix of $\mathcal{C}$ is denoted $G \in \mathbb{F}_2^{k\times n}$.
 
-Key generation samples two secret random invertible matrices: a permutation matrix $P \in \mathbb{F}_2^{n\times n}$ and an invertible scrambling matrix $S \in \mathbb{F}_2^{k\times k}$. The public key is the disguised generator matrix
-$$T = P \, G \, S$$
-(note: some descriptions use $T = S G P$ depending on left/right action conventions; here columns are permuted on the left by $P$). The secret key contains $(G, S, P)$ plus any decoding information for the underlying Goppa code.
+Work over $\mathbb F_2$, with **row vectors** throughout these examples. Let $G\in\mathbb F_2^{k\times n}$ be a full-row-rank generator matrix for an efficiently decodable binary $[n,k]$ code correcting up to $t$ errors. A binary Goppa code is defined by a polynomial $g(x)\in\mathbb F_{2^a}[x]$ and distinct support elements $\alpha_i$ with $g(\alpha_i)\ne0$; the secret includes the information needed to decode it.
 
-Encryption of a message $m \in \{0,1\}^k$:
-1. Sample a random error vector $e \in \{0,1\}^n$ of fixed Hamming weight $t$ (uniform over all weight-$t$ vectors).
-2. Compute the ciphertext (all operations over $\mathbb{F}_2$)
-$$c := T \, m + e$$
+Key generation chooses an invertible scrambling matrix $S\in\mathbb F_2^{k\times k}$ and a permutation matrix $P\in\mathbb F_2^{n\times n}$. The public generator is
+
+$$T=SGP\in\mathbb F_2^{k\times n}.$$
+
+Right multiplication by $P$ permutes the $n$ coordinates (columns of $G$). To encrypt $m\in\mathbb F_2^{1\times k}$, sample $e\in\mathbb F_2^{1\times n}$ uniformly among weight-$t$ vectors and compute
+
+$$c=mT+e\in\mathbb F_2^{1\times n}.$$
 
 Decryption:
-1. Undo permutation: $c' := P^{-1} c = G S m + P^{-1} e$.
-2. Use the error correction to remove the error part $e' = P^{-1} e$ from $c'$, and get $G S m$.
-3. Get $m$ using $S^{-1} G^{-1}$: $m= S^{-1} G^{-1} (G S m)$.
 
-Security: The scheme is one‑way under chosen‑plaintext attack (OW‑CPA): given a random ciphertext $c$ it is hard on average to recover $m$ (or $e$) without the secret key, assuming the hardness of decoding a random Goppa code. The scheme as stated is not IND‑CCA2; a transform (e.g., Fujisaki–Okamoto) is required for CCA security.
+1. Undo the permutation: $c'=cP^{-1}=mSG+eP^{-1}$. Permutation preserves the error weight.
+2. Decode $c'$ using the secret code structure to recover the codeword $w=mSG\in\mathbb F_2^{1\times n}$.
+3. Recover its information vector $u=mS\in\mathbb F_2^{1\times k}$ by solving $uG=w$. For example, choose $k$ independent columns indexed by $J$; then $G_J\in\mathbb F_2^{k\times k}$ is invertible and $u=w_JG_J^{-1}$. If $G$ is systematic, read the corresponding information coordinates directly.
+4. Compute $m=uS^{-1}$.
+
+The rectangular matrix $G$ has no two-sided inverse. These equations use only inverses of square invertible matrices. One-wayness for random messages and errors is a hardness assumption for this key distribution, not a consequence of statistical tests or of worst-case decoding hardness alone. This base construction does not provide IND-CCA2 security.
 
 ### 2. Niederreiter Cryptosystem (Variant of McEliece)
-Niederreiter cryptosystem is the variant of McEliece, and it is OW-CPA if McEliece is OW-CPA (for the same code and parameters).
-Let $\mathcal{C}$ be an efficiently decodable $[n,k]$-linear Goppa code over $\mathbb{F}_2$ that corrects up to $t$ errors, with parity‑check matrix $H \in \mathbb{F}_2^{(n-k) \times n}$. Let $d$ denote any auxiliary decoding information (e.g., structure of a Goppa code).
 
-Key generation:
-1. Sample an invertible scrambling matrix $S \in \mathrm{GL}_{n-k}(\mathbb{F}_2)$.
-2. Sample a permutation matrix $P \in \mathbb{F}_2^{n \times n}$.
-3. Form the public matrix
-$$T := S H P$$
-4. Public key: $\text{pk} := T$. Secret key: $\text{sk} := (P, H, S, d)$.
+Let $H\in\mathbb F_2^{(n-k)\times n}$ be a full-row-rank parity-check matrix for the secret code. Choose invertible $S_H\in\mathbb F_2^{(n-k)\times(n-k)}$ and permutation $P_H\in\mathbb F_2^{n\times n}$, and publish $H_{\rm pub}=S_HHP_H$.
 
-Message space:
-$$\mathcal{M} = \{ e \in \{0,1\}^n : \text{wt}(e) = t \}$$
-Each message is itself an error vector of fixed Hamming weight $t$ (non‑standard encoding, but convenient for security proofs / reductions).
+The message is a row vector $e\in\mathbb F_2^{1\times n}$ of weight $t$. Its ciphertext is the syndrome
 
-Encryption of $e \in \mathcal{M}$:
+$$c=eH_{\rm pub}^{\mathsf T}=eP_H^{\mathsf T}H^{\mathsf T}S_H^{\mathsf T}\in\mathbb F_2^{1\times(n-k)}.$$
 
-$c := T e = S H P e$ 
+To decrypt, compute $c'=c(S_H^{\mathsf T})^{-1}=eP_H^{\mathsf T}H^{\mathsf T}$. Secret syndrome decoding recovers $v=eP_H^{\mathsf T}$ of weight $t$; then $e=v(P_H^{\mathsf T})^{-1}$. For the same code and parameters, this decoding-based one-wayness problem corresponds to that of McEliece. It does not by itself give chosen-ciphertext security.
 
-(All operations over $\mathbb{F}_2$.)
+### 3. Classic McEliece KEM and Its FO-like Construction
 
-Decryption of $c$:
-1. Compute $c' := S^{-1} c = H P e$.
-2. Since $P$ is a permutation, $\text{wt}(P e) = t$. Run the (syndrome) decoding algorithm for $H$ (using $d$ if needed) to recover $P e$ from $c'$.
-3. Output $e = P^{-1} (P e)$.
+The implementation here follows the ordinary, non-`pc` construction in the [Classic McEliece specification (23 October 2022)](https://classic.mceliece.org/mceliece-spec-20221023.pdf), and the official Sage [encapsulation](https://classic.mceliece.org/mceliece-sage-20221023/encap.sage.html) and [decapsulation](https://classic.mceliece.org/mceliece-sage-20221023/decap.sage.html) definitions. Its public key stores the nonidentity block $A$ of a systematic parity-check matrix $H_{\rm pub}=(I_{at}\mid A)$, with $k=n-at$. This $A$ is called $T$ in the specification; it is different from the generator $T$ in Section 1 above.
 
-Correctness follows because $c'$ is precisely the syndrome of $P e$ under $H$. Security: This scheme is one‑way under chosen‑plaintext attack (OW‑CPA) assuming the hardness of decoding a random weight‑$t$ error for the underlying code family.
+For the instrumented clean 6960119 implementation, see `operations.c`, `encrypt.c`, `decrypt.c`, and `crypto_hash.h` in `src/kem/classic_mceliece/pqclean_mceliece6960119_clean/`:
 
-### 3. Classic McEliece (KEM with ROM and QROM IND-CCA2 security using Fujisaki–Okamoto (FO) like transformation with implicit rejection)
-Classic McEliece (NIST PQC selection for code‑based encryption) modernizes the original design with carefully chosen binary Goppa code parameters providing targeted security levels (NIST L1–L5) and adopts constant‑time, side‑channel aware implementations.
+- **Encapsulation:** `gen_e` samples a weight-$t$ vector; `syndrome` computes $c=eH_{\rm pub}^{\mathsf T}$. Derive the 32-byte shared secret $K=\operatorname{SHAKE256}_{32}(1\parallel e\parallel c)$. Here `0` and `1` are single domain-separation **bytes**, and vectors and ciphertexts use the specified byte encodings. For 6960119, $a=13$, $n=6960$, $t=119$: the syndrome has $at=1547$ bits, encoded in 194 bytes with five zero padding bits.
+- **Decapsulation:** `decrypt` finds a candidate $\hat e$ and checks both its weight $t$ and its syndrome against the received ciphertext (via the secret Goppa-code representation). On success derive $K=\operatorname{SHAKE256}_{32}(1\parallel\hat e\parallel c)$. On decoding / validation failure derive $K=\operatorname{SHAKE256}_{32}(0\parallel s\parallel c)$, where $s$ is a secret $n$-bit fallback string stored during key generation, not a new error sample or a hash of the whole secret key. `operations.c` selects the preimage with masks. This is **implicit rejection**: for properly encoded ciphertexts, decoding failure returns a derived key without a failure status. Legitimate ciphertexts decode correctly.
+- **Encoding errors are separate:** 6960119 rejects nonzero ciphertext padding with return value `-1` and an all-`0xFF` output key. Nonzero public-key padding makes encapsulation return `-1` and zero its outputs. Thus implicit rejection of a decoding failure does not mean every malformed byte string is accepted.
 
-More precisely, Classic McEliece is specified and implemented as a KEM: it encapsulates a uniformly distributed shared secret rather than directly encrypting arbitrary plaintext. Operationally, the Niederreiter variant serves as the core OW‑CPA primitive; a Fujisaki–Okamoto (FO) like transform with implicit rejection is then applied to reach IND‑CCA2 security.
+The ordinary ciphertext contains only the syndrome, with no separate confirmation hash. The [plaintext-confirmation (`pc`) variant](https://classic.mceliece.org/mceliece-pc-20221023.pdf) instead sends $c=(c_0,c_1)$ with $c_0=eH_{\rm pub}^{\mathsf T}$ and $c_1=H(2\parallel e)$, and additionally checks $c_1$ during decapsulation. That variant is not implemented by the parameter sets listed here; the suffix `f` denotes the fast key-generation variant, not plaintext confirmation.
 
-### 4. Security Notions: From OW‑CPA to IND‑CCA2
-Base McEliece / Niederreiter provides only OW‑CPA (one‑wayness under chosen‑plaintext attacks). To obtain IND‑CCA2 (confidentiality under adaptive chosen‑ciphertext attacks), Classic McEliece applies the Fujisaki–Okamoto (FO) like transform with implicit rejection. Below is a high-level overview of the transform:
-- Sample error vector e uniformly among weight‑t vectors (core randomness).
-- Derive a candidate shared secret K = H1(e || pk) with a hash / XOF (domain separation ensures binding to the public key).
-- Form ciphertext components deterministically from e (Niederreiter syndrome) plus a re-encryption consistency hash; include H2(e || pk) where specification requires.
-- On decapsulation: attempt to decode, recompute what the ciphertext should be from the recovered e; if mismatch, set e' = H3(ciphertext || sk) (implicit rejection) ensuring no decryption oracle leakage, then derive K' = H1(e' || pk).
-This transforms decoding failures or malicious modifications into pseudorandom outputs, preventing adaptive distinguishing attacks.
+### 4. Security Claims and Parameter Categories
+
+“FO-like” describes the relationship to transformation techniques; a generic FO recipe is not a specification of this KEM. Here the Niederreiter primitive is deterministic once its input $e$ is fixed, decoding validates that input, and domain-separated hashes bind the shared secret to $e$ (or secret $s$) and the ciphertext. There is no $H_1(e\parallel\mathrm{pk})$ key derivation or invented $H_3(c\parallel\mathrm{sk})$ fallback.
+
+The [security guide](https://classic.mceliece.org/mceliece-security-20221023.pdf), Sections 5.3–5.5, relates IND-CCA2 security in the random-oracle model (ROM) and quantum random-oracle model (QROM) to the relevant one-wayness assumptions, correctness, and the specified randomness generation. These are conditional reductions; modeling SHAKE256 as an oracle is an assumption, not a proof that the concrete hash or this fork's implementation is secure. Neither generic decoding hardness nor observed randomness alone establishes these claims.
+
+The implemented parameter sets target the following **NIST security categories**, as claimed in the submission and recorded in `docs/algorithms/kem/classic_mceliece.yml` (the `f` variants have the same targets):
+
+| Parameter sets (with or without `f`) | Target category | Reference comparison |
+| --- | --- | --- |
+| 348864 | 1 | AES-128 key search |
+| 460896 | 3 | AES-192 key search |
+| 6688128, 6960119, 8192128 | 5 | AES-256 key search |
+
+These are attack-cost targets, not categories established by these experiments or a claim of NIST standardization. Statistical randomness tests, CSPRNG security (including adequate seeding and unpredictability), uniform fixed-weight sampling, IND-CCA2 security, side-channel resistance, and formal verification are distinct properties requiring different evidence. NIST STS, Dieharder, chi-square tests, bit balance, and empirical byte frequencies cannot prove any of these cryptographic security properties or certify min-entropy. See also [NIST SP 800-22 Rev. 1a](https://csrc.nist.gov/pubs/sp/800/22/r1/upd1/final).
 
 ### 5. Randomness Sources & Simple Measurement
-Key security hinges on high‑quality randomness for:
-1. Error vector e (weight‑t selection must be uniform across all weight‑t subsets of positions).
-2. Hash outputs (FO transform hashes H1, H2, etc.).
 
-Practical lightweight checks (not a substitute for formal statistical analysis):
-- Collect N (e.g., 10^4) sampled error vectors; verify each has exact weight t; compute frequency of each position being a 1 and ensure all frequencies lie within an acceptable deviation band (e.g., ±3σ of expected t/n).
-- Perform pairwise collision count on e samples; observed collisions should align with birthday bound expectations (very low for chosen N).
-- For hash outputs used to derive shared secrets, concatenate many outputs and test bit balance (ratio of ones to total bits ~ 0.5 within tolerance) and approximate min‑entropy per byte (no value dominating excessively).
-- Use a chi‑square uniformity test across byte values for aggregated hash output (p-value in a non‑extreme interval, e.g., 0.01–0.99).
+Key generation and encapsulation require a cryptographically secure random source. `randombytes` maps to `OQS_randombytes` here. Under ideal independent uniform input bits, `gen_e`'s range rejection and rejection of duplicate indices produce a uniform weight-$t$ subset: every ordered sequence of distinct accepted indices is equally likely, and every subset has $t!$ orderings. A real CSPRNG supplies computational pseudorandomness; equal coordinate frequencies alone do not show uniformity over all $\binom nt$ subsets or independence between samples.
 
 #### 5.1 Implemented Internal Instrumentation for `e` Sampling
-To move beyond black‑box sanity checks, this fork adds optional compile‑time instrumentation to observe and summarize the distribution of positions selected in the Niederreiter / Classic McEliece error vector `e`.
 
-Location (example parameter set instrumented):
-`src/kem/classic_mceliece/pqclean_mceliece6960119_clean/encrypt.c`
+Only `src/kem/classic_mceliece/pqclean_mceliece6960119_clean/encrypt.c` is instrumented, behind `OQS_MEASURE_E_RANDOMNESS`. The counters record accepted samples, coordinate frequencies, and restarts caused by duplicate indices. `restarts` excludes attempts with too few in-range indices, so it is not a count of all rejected attempts. Duplicate rejections need not be rare relative to accepted samples.
 
-Instrumentation is guarded by the macro `OQS_MEASURE_E_RANDOMNESS` so normal (constant‑time focused) builds are unaffected.
+For $N>0$ independent uniform weight-$t$ vectors, let $f_i$ be the count for coordinate $i$, $p=t/n$, and $E=Np$. Then
 
-Added elements (inside `#ifdef OQS_MEASURE_E_RANDOMNESS`):
-- Global counters:
-	- `static uint64_t e_index_frequency[SYS_N];`  counts how often each coordinate 0..SYS_N-1 appears in sampled error vectors.
-	- `static uint64_t e_sample_count;` number of successfully generated error vectors.
-	- `static uint64_t e_restart_count;` number of rejected attempts (loops) due to duplicate indices when enforcing distinct positions.
-- Hook points in `gen_e`:
-	- After detecting a duplicate and restarting, `oqs_mceliece_record_e_restart()` increments `e_restart_count`.
-	- After a valid set of indices is chosen (just before packing bits), `oqs_mceliece_record_e_indices(ind, SYS_T)` updates per‑index frequencies and increments `e_sample_count`.
-- Public (internal) reporting function:
-	- `void oqs_mceliece_dump_e_randomness_stats(void);`
-		* Computes: expected frequency per index `expected = samples * SYS_T / SYS_N`.
-		* Aggregates: min / max index frequency, number of zero‑hit indices, total restarts.
-		* Computes a Pearson chi‑square statistic:
+$$\sum_i f_i=Nt,\qquad f_i\sim\operatorname{Binomial}(N,p),\qquad\operatorname{Var}(f_i)=Np(1-p).$$
 
-		$$\chi^{2} = \sum_{i=0}^{\mathrm{SYS\_N}-1} \frac{(f_i - E)^2}{E}$$
+Within each vector coordinates are negatively dependent; for $i\ne j$,
 
-		where `E = samples * SYS_T / SYS_N`
+$$\operatorname{Cov}(f_i,f_j)=-\frac{Np(1-p)}{n-1}.$$
 
-		(df = $\mathrm{SYS\_N}-1$).
+The reported Pearson-style statistic is
 
-		* Emits a single summary line to `stderr` with these values.
+$$X_{\rm raw}^2=\sum_{i=0}^{n-1}\frac{(f_i-E)^2}{E},\qquad\mathbb E[X_{\rm raw}^2]=\frac{nNp(1-p)}{Np}=n-t.$$
 
-Snippet of added usage points (conceptually):
-```
-gen_e(e) {
-		...
-		if (duplicate_indices) oqs_mceliece_record_e_restart();
-		...
-		oqs_mceliece_record_e_indices(ind, SYS_T);
-}
-```
+Thus it is not the ordinary multinomial chi-square statistic. On the $(n-1)$-dimensional subspace $\sum_i(f_i-E)=0$, the covariance of $(f-E)/\sqrt E$ has eigenvalue $(n-t)/(n-1)$. The multivariate central limit theorem therefore gives, for fixed $n$ and $0<t<n$ as $N\to\infty$,
+
+$$X_{\rm adjusted}^2=\frac{n-1}{n-t}X_{\rm raw}^2\ \xrightarrow{d}\ \chi^2_{n-1}.$$
+
+The raw expectation is exact under the null; the adjusted chi-square law is only asymptotic. Sparse counts, large $n$ relative to $N$, dependent samples, and repeated testing can undermine calibration. The dump reports `chi2_raw`, `expected_chi2_raw`, `chi2_adjusted`, and `asymptotic_df`; it does not compute a p-value or a security verdict.
+
+For **1,000 samples** at $n=6960$, $t=119$:
+
+- Total selections are exactly 119,000; $E=119000/6960\approx17.10$ per coordinate.
+- $\mathbb E[X_{\rm raw}^2]=6841$; $\mathbb E[X_{\rm adjusted}^2]=6959$ and the asymptotic degrees of freedom are 6959.
+- A maximum count of 7 is impossible: some count must be at least $\lceil119000/6960\rceil=18$. No measured min, max, zero count, restart count, or statistic is asserted here.
+
+Use a prespecified **global** test of coordinate balance, calibrated by the adjusted approximation only when justified, or by Monte Carlo: independently simulate many datasets of $N$ uniform weight-$t$ subsets, compute the same statistic, and compare the observation with that null distribution (e.g., upper-tail p-value $(1+\#\{X_b\ge X_{\rm obs}\})/(B+1)$ for $B$ simulations). Simulation must preserve fixed weight and use a trusted independent null sampler; it cannot repair dependence in the observed samples. Even this global frequency test cannot detect every nonuniform subset distribution or prove a CSPRNG secure.
+
+An individual coordinate has standard deviation $\sqrt{Np(1-p)}$ for counts, or $\sqrt{p(1-p)/N}$ for frequencies. Requiring **every** coordinate to be within an individual $\pm3\sigma$ interval ignores 6960 comparisons (a normal approximation would predict about $6960\times0.0027\approx19$ exceedances on average, without assuming coordinate independence). Counts here are discrete and skewed, so that normal estimate is only illustrative. For coordinate-level follow-up, use exact binomial tails with a multiple-comparison correction such as Bonferroni, or calibrate the maximum deviation globally by the same fixed-weight Monte Carlo model. Prespecify significance levels and account for multiple workloads / tests.
 
 Build & usage:
-1. Configure with the macro enabled (example CMake invocation):
-	 - `cmake -S . -B build -DOQS_ENABLE_KEM_CLASSIC_MCELIECE=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_C_FLAGS="-DOQS_MEASURE_E_RANDOMNESS"`
-2. Run a workload that performs many encapsulations / `encrypt` calls.
-3. From any test or added harness (after operations), call:
-	 - `oqs_mceliece_dump_e_randomness_stats();`
-4. Inspect stderr output, e.g.:
-	 `[e-rand] samples=1000, restarts=12, expected_per_index=3.45, min=0, max=7, zeros=15, chi^2=1043.27 (df=6960119)` (illustrative only).
 
-Interpretation guidance:
-- `restarts` gives an efficiency view of rejection sampling (should be modest relative to samples).
-- `zeros` (indices never selected) should shrink as sample size grows; a persistently large fraction may indicate bias.
-- `chi^2` compared to chi‑square distribution (optionally approximate via (chi^2 - df) / sqrt(2*df)) gives a standardized deviation score; very large outliers signal non‑uniformity.
+1. Configure with `-DCMAKE_C_FLAGS="-DOQS_MEASURE_E_RANDOMNESS"` and the desired Classic McEliece algorithm enabled.
+2. Run a workload that actually calls the 6960119 **clean** implementation; other implementations do not update these counters.
+3. After the workload, manually declare and call `void oqs_mceliece_dump_e_randomness_stats(void);` in an internal test. It prints sample counts, duplicate restarts, expected coordinate count, min / max, zeros, and both statistics to `stderr`. The function has external linkage but no public header or supported KEM API.
 
-Security / safety notes:
-- Instrumentation introduces side channels (extra branches, memory writes, I/O) and must not be used in production or benchmarking constant‑time performance.
-- Only one parameter set file was instrumented (6960119 clean variant) for demonstration; analogous edits can be propagated to other variants if needed.
-- No header was added: functions are confined to the translation unit unless the user declares them elsewhere for manual invocation. This minimizes API surface changes.
-
-Possible future enhancements:
-- Add a generic macro layer to instrument all Classic McEliece parameter sets.
-- Export a small header (guarded) to allow external test harnesses to trigger dumps without `extern` declarations.
-- Include variance / standard deviation reporting or simple p‑value estimation.
+Instrumentation adds secret-dependent memory accesses and I/O. Use it only for controlled experiments, never production or constant-time / side-channel benchmarking. Normal builds exclude all instrumentation. Checks of exact weight, coordinate counts, or hash-output balance remain diagnostics; STS / Dieharder tests designed for unbiased bit streams should not be applied directly to the sparse, fixed-weight `e` vectors with an independent-fair-bit null model.
 
 ---
 Below are the original README.md of the liboqs repo
