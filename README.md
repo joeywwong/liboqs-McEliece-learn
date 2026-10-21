@@ -10,50 +10,56 @@ This fork adds background on McEliece, Niederreiter, the Classic McEliece KEM, a
 
 ### 1. McEliece Cryptosystem
 
-Work over $\mathbb F_2$, with **row vectors** throughout these examples. Let $G\in\mathbb F_2^{k\times n}$ be a full-row-rank generator matrix for an efficiently decodable binary $[n,k]$ code correcting up to $t$ errors. A binary Goppa code is defined by a polynomial $g(x)\in\mathbb F_{2^a}[x]$ and distinct support elements $\alpha_i$ with $g(\alpha_i)\ne0$; the secret includes the information needed to decode it.
+Work over $`\mathbb F_2`$, with **row vectors** throughout these examples. Let $`G\in\mathbb F_2^{k\times n}`$ be a full-row-rank generator matrix for an efficiently decodable binary $`[n,k]`$ code correcting up to $`t`$ errors. A binary Goppa code is defined by a polynomial $`g(x)\in\mathbb F_{2^a}[x]`$ and distinct support elements $`\alpha_i`$ with $`g(\alpha_i)\ne0`$; the secret includes the information needed to decode it.
 
-Key generation chooses an invertible scrambling matrix $S\in\mathbb F_2^{k\times k}$ and a permutation matrix $P\in\mathbb F_2^{n\times n}$. The public generator is
+Key generation chooses an invertible scrambling matrix $`S\in\mathbb F_2^{k\times k}`$ and a permutation matrix $`P\in\mathbb F_2^{n\times n}`$. The public generator is
 
-$$T=SGP\in\mathbb F_2^{k\times n}.$$
+```math
+T=SGP\in\mathbb F_2^{k\times n}.
+```
 
-Right multiplication by $P$ permutes the $n$ coordinates (columns of $G$). To encrypt $m\in\mathbb F_2^{1\times k}$, sample $e\in\mathbb F_2^{1\times n}$ uniformly among weight-$t$ vectors and compute
+Right multiplication by $`P`$ permutes the $`n`$ coordinates (columns of $`G`$). To encrypt $`m\in\mathbb F_2^{1\times k}`$, sample $`e\in\mathbb F_2^{1\times n}`$ uniformly among weight-$`t`$ vectors and compute
 
-$$c=mT+e\in\mathbb F_2^{1\times n}.$$
+```math
+c=mT+e\in\mathbb F_2^{1\times n}.
+```
 
 Decryption:
 
-1. Undo the permutation: $c'=cP^{-1}=mSG+eP^{-1}$. Permutation preserves the error weight.
-2. Decode $c'$ using the secret code structure to recover the codeword $w=mSG\in\mathbb F_2^{1\times n}$.
-3. Recover its information vector $u=mS\in\mathbb F_2^{1\times k}$ by solving $uG=w$. For example, choose $k$ independent columns indexed by $J$; then $G_J\in\mathbb F_2^{k\times k}$ is invertible and $u=w_JG_J^{-1}$. If $G$ is systematic, read the corresponding information coordinates directly.
-4. Compute $m=uS^{-1}$.
+1. Undo the permutation: $`c'=cP^{-1}=mSG+eP^{-1}`$. Permutation preserves the error weight.
+2. Decode $`c'`$ using the secret code structure to recover the codeword $`w=mSG\in\mathbb F_2^{1\times n}`$.
+3. Recover its information vector $`u=mS\in\mathbb F_2^{1\times k}`$ by solving $`uG=w`$. For example, choose $`k`$ independent columns indexed by $`J`$; then $`G_J\in\mathbb F_2^{k\times k}`$ is invertible and $`u=w_JG_J^{-1}`$. If $`G`$ is systematic, read the corresponding information coordinates directly.
+4. Compute $`m=uS^{-1}`$.
 
-The rectangular matrix $G$ has no two-sided inverse. These equations use only inverses of square invertible matrices. One-wayness for random messages and errors is a hardness assumption for this key distribution, not a consequence of statistical tests or of worst-case decoding hardness alone. This base construction does not provide IND-CCA2 security.
+The rectangular matrix $`G`$ has no two-sided inverse. These equations use only inverses of square invertible matrices. One-wayness for random messages and errors is a hardness assumption for this key distribution, not a consequence of statistical tests or of worst-case decoding hardness alone. This base construction does not provide IND-CCA2 security.
 
 ### 2. Niederreiter Cryptosystem (Variant of McEliece)
 
-Let $H\in\mathbb F_2^{(n-k)\times n}$ be a full-row-rank parity-check matrix for the secret code. Choose invertible $S_H\in\mathbb F_2^{(n-k)\times(n-k)}$ and permutation $P_H\in\mathbb F_2^{n\times n}$, and publish $H_{\rm pub}=S_HHP_H$.
+Let $`H\in\mathbb F_2^{(n-k)\times n}`$ be a full-row-rank parity-check matrix for the secret code. Choose invertible $`S_H\in\mathbb F_2^{(n-k)\times(n-k)}`$ and permutation $`P_H\in\mathbb F_2^{n\times n}`$, and publish $`H_{\rm pub}=S_HHP_H`$.
 
-The message is a row vector $e\in\mathbb F_2^{1\times n}$ of weight $t$. Its ciphertext is the syndrome
+The message is a row vector $`e\in\mathbb F_2^{1\times n}`$ of weight $`t`$. Its ciphertext is the syndrome
 
-$$c=eH_{\rm pub}^{\mathsf T}=eP_H^{\mathsf T}H^{\mathsf T}S_H^{\mathsf T}\in\mathbb F_2^{1\times(n-k)}.$$
+```math
+c=eH_{\rm pub}^{\mathsf T}=eP_H^{\mathsf T}H^{\mathsf T}S_H^{\mathsf T}\in\mathbb F_2^{1\times(n-k)}.
+```
 
-To decrypt, compute $c'=c(S_H^{\mathsf T})^{-1}=eP_H^{\mathsf T}H^{\mathsf T}$. Secret syndrome decoding recovers $v=eP_H^{\mathsf T}$ of weight $t$; then $e=v(P_H^{\mathsf T})^{-1}$. For the same code and parameters, this decoding-based one-wayness problem corresponds to that of McEliece. It does not by itself give chosen-ciphertext security.
+To decrypt, compute $`c'=c(S_H^{\mathsf T})^{-1}=eP_H^{\mathsf T}H^{\mathsf T}`$. Secret syndrome decoding recovers $`v=eP_H^{\mathsf T}`$ of weight $`t`$; then $`e=v(P_H^{\mathsf T})^{-1}`$. For the same code and parameters, this decoding-based one-wayness problem corresponds to that of McEliece. It does not by itself give chosen-ciphertext security.
 
 ### 3. Classic McEliece KEM and Its FO-like Construction
 
-The implementation here follows the ordinary, non-`pc` construction in the [Classic McEliece specification (23 October 2022)](https://classic.mceliece.org/mceliece-spec-20221023.pdf), and the official Sage [encapsulation](https://classic.mceliece.org/mceliece-sage-20221023/encap.sage.html) and [decapsulation](https://classic.mceliece.org/mceliece-sage-20221023/decap.sage.html) definitions. Its public key stores the nonidentity block $A$ of a systematic parity-check matrix $H_{\rm pub}=(I_{at}\mid A)$, with $k=n-at$. This $A$ is called $T$ in the specification; it is different from the generator $T$ in Section 1 above.
+The implementation here follows the ordinary, non-`pc` construction in the [Classic McEliece specification (23 October 2022)](https://classic.mceliece.org/mceliece-spec-20221023.pdf), and the official Sage [encapsulation](https://classic.mceliece.org/mceliece-sage-20221023/encap.sage.html) and [decapsulation](https://classic.mceliece.org/mceliece-sage-20221023/decap.sage.html) definitions. Its public key stores the nonidentity block $`A`$ of a systematic parity-check matrix $`H_{\rm pub}=(I_{at}\mid A)`$, with $`k=n-at`$. This $`A`$ is called $`T`$ in the specification; it is different from the generator $`T`$ in Section 1 above.
 
 For the instrumented clean 6960119 implementation, see `operations.c`, `encrypt.c`, `decrypt.c`, and `crypto_hash.h` in `src/kem/classic_mceliece/pqclean_mceliece6960119_clean/`:
 
-- **Encapsulation:** `gen_e` samples a weight-$t$ vector; `syndrome` computes $c=eH_{\rm pub}^{\mathsf T}$. Derive the 32-byte shared secret $K=\operatorname{SHAKE256}_{32}(1\parallel e\parallel c)$. Here `0` and `1` are single domain-separation **bytes**, and vectors and ciphertexts use the specified byte encodings. For 6960119, $a=13$, $n=6960$, $t=119$: the syndrome has $at=1547$ bits, encoded in 194 bytes with five zero padding bits.
-- **Decapsulation:** `decrypt` finds a candidate $\hat e$ and checks both its weight $t$ and its syndrome against the received ciphertext (via the secret Goppa-code representation). On success derive $K=\operatorname{SHAKE256}_{32}(1\parallel\hat e\parallel c)$. On decoding / validation failure derive $K=\operatorname{SHAKE256}_{32}(0\parallel s\parallel c)$, where $s$ is a secret $n$-bit fallback string stored during key generation, not a new error sample or a hash of the whole secret key. `operations.c` selects the preimage with masks. This is **implicit rejection**: for properly encoded ciphertexts, decoding failure returns a derived key without a failure status. Legitimate ciphertexts decode correctly.
+- **Encapsulation:** `gen_e` samples a weight-$`t`$ vector; `syndrome` computes $`c=eH_{\rm pub}^{\mathsf T}`$. Derive the 32-byte shared secret $`K=\mathrm{SHAKE256}_{32}(1\parallel e\parallel c)`$. Here `0` and `1` are single domain-separation **bytes**, and vectors and ciphertexts use the specified byte encodings. For 6960119, $`a=13`$, $`n=6960`$, $`t=119`$: the syndrome has $`at=1547`$ bits, encoded in 194 bytes with five zero padding bits.
+- **Decapsulation:** `decrypt` finds a candidate $`\hat e`$ and checks both its weight $`t`$ and its syndrome against the received ciphertext (via the secret Goppa-code representation). On success derive $`K=\mathrm{SHAKE256}_{32}(1\parallel\hat e\parallel c)`$. On decoding / validation failure derive $`K=\mathrm{SHAKE256}_{32}(0\parallel s\parallel c)`$, where $`s`$ is a secret $`n`$-bit fallback string stored during key generation, not a new error sample or a hash of the whole secret key. `operations.c` selects the preimage with masks. This is **implicit rejection**: for properly encoded ciphertexts, decoding failure returns a derived key without a failure status. Legitimate ciphertexts decode correctly.
 - **Encoding errors are separate:** 6960119 rejects nonzero ciphertext padding with return value `-1` and an all-`0xFF` output key. Nonzero public-key padding makes encapsulation return `-1` and zero its outputs. Thus implicit rejection of a decoding failure does not mean every malformed byte string is accepted.
 
-The ordinary ciphertext contains only the syndrome, with no separate confirmation hash. The [plaintext-confirmation (`pc`) variant](https://classic.mceliece.org/mceliece-pc-20221023.pdf) instead sends $c=(c_0,c_1)$ with $c_0=eH_{\rm pub}^{\mathsf T}$ and $c_1=H(2\parallel e)$, and additionally checks $c_1$ during decapsulation. That variant is not implemented by the parameter sets listed here; the suffix `f` denotes the fast key-generation variant, not plaintext confirmation.
+The ordinary ciphertext contains only the syndrome, with no separate confirmation hash. The [plaintext-confirmation (`pc`) variant](https://classic.mceliece.org/mceliece-pc-20221023.pdf) instead sends $`c=(c_0,c_1)`$ with $`c_0=eH_{\rm pub}^{\mathsf T}`$ and $`c_1=H(2\parallel e)`$, and additionally checks $`c_1`$ during decapsulation. That variant is not implemented by the parameter sets listed here; the suffix `f` denotes the fast key-generation variant, not plaintext confirmation.
 
 ### 4. Security Claims and Parameter Categories
 
-“FO-like” describes the relationship to transformation techniques; a generic FO recipe is not a specification of this KEM. Here the Niederreiter primitive is deterministic once its input $e$ is fixed, decoding validates that input, and domain-separated hashes bind the shared secret to $e$ (or secret $s$) and the ciphertext. There is no $H_1(e\parallel\mathrm{pk})$ key derivation or invented $H_3(c\parallel\mathrm{sk})$ fallback.
+“FO-like” describes the relationship to transformation techniques; a generic FO recipe is not a specification of this KEM. Here the Niederreiter primitive is deterministic once its input $`e`$ is fixed, decoding validates that input, and domain-separated hashes bind the shared secret to $`e`$ (or secret $`s`$) and the ciphertext. There is no $`H_1(e\parallel\mathrm{pk})`$ key derivation or invented $`H_3(c\parallel\mathrm{sk})`$ fallback.
 
 The [security guide](https://classic.mceliece.org/mceliece-security-20221023.pdf), Sections 5.3–5.5, relates IND-CCA2 security in the random-oracle model (ROM) and quantum random-oracle model (QROM) to the relevant one-wayness assumptions, correctness, and the specified randomness generation. These are conditional reductions; modeling SHAKE256 as an oracle is an assumption, not a proof that the concrete hash or this fork's implementation is secure. Neither generic decoding hardness nor observed randomness alone establishes these claims.
 
@@ -69,39 +75,47 @@ These are attack-cost targets, not categories established by these experiments o
 
 ### 5. Randomness Sources & Simple Measurement
 
-Key generation and encapsulation require a cryptographically secure random source. `randombytes` maps to `OQS_randombytes` here. Under ideal independent uniform input bits, `gen_e`'s range rejection and rejection of duplicate indices produce a uniform weight-$t$ subset: every ordered sequence of distinct accepted indices is equally likely, and every subset has $t!$ orderings. A real CSPRNG supplies computational pseudorandomness; equal coordinate frequencies alone do not show uniformity over all $\binom nt$ subsets or independence between samples.
+Key generation and encapsulation require a cryptographically secure random source. `randombytes` maps to `OQS_randombytes` here. Under ideal independent uniform input bits, `gen_e`'s range rejection and rejection of duplicate indices produce a uniform weight-$`t`$ subset: every ordered sequence of distinct accepted indices is equally likely, and every subset has $`t!`$ orderings. A real CSPRNG supplies computational pseudorandomness; equal coordinate frequencies alone do not show uniformity over all $`\binom nt`$ subsets or independence between samples.
 
 #### 5.1 Implemented Internal Instrumentation for `e` Sampling
 
 Only `src/kem/classic_mceliece/pqclean_mceliece6960119_clean/encrypt.c` is instrumented, behind `OQS_MEASURE_E_RANDOMNESS`. The counters record accepted samples, coordinate frequencies, and restarts caused by duplicate indices. `restarts` excludes attempts with too few in-range indices, so it is not a count of all rejected attempts. Duplicate rejections need not be rare relative to accepted samples.
 
-For $N>0$ independent uniform weight-$t$ vectors, let $f_i$ be the count for coordinate $i$, $p=t/n$, and $E=Np$. Then
+For $`N>0`$ independent uniform weight-$`t`$ vectors, let $`f_i`$ be the count for coordinate $`i`$, $`p=t/n`$, and $`E=Np`$. Then
 
-$$\sum_i f_i=Nt,\qquad f_i\sim\operatorname{Binomial}(N,p),\qquad\operatorname{Var}(f_i)=Np(1-p).$$
+```math
+\sum_i f_i=Nt,\qquad f_i\sim\mathrm{Binomial}(N,p),\qquad\mathrm{Var}(f_i)=Np(1-p).
+```
 
-Within each vector coordinates are negatively dependent; for $i\ne j$,
+Within each vector coordinates are negatively dependent; for $`i\ne j`$,
 
-$$\operatorname{Cov}(f_i,f_j)=-\frac{Np(1-p)}{n-1}.$$
+```math
+\mathrm{Cov}(f_i,f_j)=-\frac{Np(1-p)}{n-1}.
+```
 
 The reported Pearson-style statistic is
 
-$$X_{\rm raw}^2=\sum_{i=0}^{n-1}\frac{(f_i-E)^2}{E},\qquad\mathbb E[X_{\rm raw}^2]=\frac{nNp(1-p)}{Np}=n-t.$$
+```math
+X_{\rm raw}^2=\sum_{i=0}^{n-1}\frac{(f_i-E)^2}{E},\qquad\mathbb E[X_{\rm raw}^2]=\frac{nNp(1-p)}{Np}=n-t.
+```
 
-Thus it is not the ordinary multinomial chi-square statistic. On the $(n-1)$-dimensional subspace $\sum_i(f_i-E)=0$, the covariance of $(f-E)/\sqrt E$ has eigenvalue $(n-t)/(n-1)$. The multivariate central limit theorem therefore gives, for fixed $n$ and $0<t<n$ as $N\to\infty$,
+Thus it is not the ordinary multinomial chi-square statistic. On the $`(n-1)`$-dimensional subspace $`\sum_i(f_i-E)=0`$, the covariance of $`(f-E)/\sqrt E`$ has eigenvalue $`(n-t)/(n-1)`$. The multivariate central limit theorem therefore gives, for fixed $`n`$ and $`0<t<n`$ as $`N\to\infty`$,
 
-$$X_{\rm adjusted}^2=\frac{n-1}{n-t}X_{\rm raw}^2\ \xrightarrow{d}\ \chi^2_{n-1}.$$
+```math
+X_{\rm adjusted}^2=\frac{n-1}{n-t}X_{\rm raw}^2\ \xrightarrow{d}\ \chi^2_{n-1}.
+```
 
-The raw expectation is exact under the null; the adjusted chi-square law is only asymptotic. Sparse counts, large $n$ relative to $N$, dependent samples, and repeated testing can undermine calibration. The dump reports `chi2_raw`, `expected_chi2_raw`, `chi2_adjusted`, and `asymptotic_df`; it does not compute a p-value or a security verdict.
+The raw expectation is exact under the null; the adjusted chi-square law is only asymptotic. Sparse counts, large $`n`$ relative to $`N`$, dependent samples, and repeated testing can undermine calibration. The dump reports `chi2_raw`, `expected_chi2_raw`, `chi2_adjusted`, and `asymptotic_df`; it does not compute a p-value or a security verdict.
 
-For **1,000 samples** at $n=6960$, $t=119$:
+For **1,000 samples** at $`n=6960`$, $`t=119`$:
 
-- Total selections are exactly 119,000; $E=119000/6960\approx17.10$ per coordinate.
-- $\mathbb E[X_{\rm raw}^2]=6841$; $\mathbb E[X_{\rm adjusted}^2]=6959$ and the asymptotic degrees of freedom are 6959.
-- A maximum count of 7 is impossible: some count must be at least $\lceil119000/6960\rceil=18$. No measured min, max, zero count, restart count, or statistic is asserted here.
+- Total selections are exactly 119,000; $`E=119000/6960\approx17.10`$ per coordinate.
+- $`\mathbb E[X_{\rm raw}^2]=6841`$; $`\mathbb E[X_{\rm adjusted}^2]=6959`$ and the asymptotic degrees of freedom are 6959.
+- A maximum count of 7 is impossible: some count must be at least $`\lceil119000/6960\rceil=18`$. No measured min, max, zero count, restart count, or statistic is asserted here.
 
-Use a prespecified **global** test of coordinate balance, calibrated by the adjusted approximation only when justified, or by Monte Carlo: independently simulate many datasets of $N$ uniform weight-$t$ subsets, compute the same statistic, and compare the observation with that null distribution (e.g., upper-tail p-value $(1+\#\{X_b\ge X_{\rm obs}\})/(B+1)$ for $B$ simulations). Simulation must preserve fixed weight and use a trusted independent null sampler; it cannot repair dependence in the observed samples. Even this global frequency test cannot detect every nonuniform subset distribution or prove a CSPRNG secure.
+Use a prespecified **global** test of coordinate balance, calibrated by the adjusted approximation only when justified, or by Monte Carlo: independently simulate many datasets of $`N`$ uniform weight-$`t`$ subsets, compute the same statistic, and compare the observation with that null distribution (e.g., upper-tail p-value $`(1+\#\{X_b\ge X_{\rm obs}\})/(B+1)`$ for $`B`$ simulations). Simulation must preserve fixed weight and use a trusted independent null sampler; it cannot repair dependence in the observed samples. Even this global frequency test cannot detect every nonuniform subset distribution or prove a CSPRNG secure.
 
-An individual coordinate has standard deviation $\sqrt{Np(1-p)}$ for counts, or $\sqrt{p(1-p)/N}$ for frequencies. Requiring **every** coordinate to be within an individual $\pm3\sigma$ interval ignores 6960 comparisons (a normal approximation would predict about $6960\times0.0027\approx19$ exceedances on average, without assuming coordinate independence). Counts here are discrete and skewed, so that normal estimate is only illustrative. For coordinate-level follow-up, use exact binomial tails with a multiple-comparison correction such as Bonferroni, or calibrate the maximum deviation globally by the same fixed-weight Monte Carlo model. Prespecify significance levels and account for multiple workloads / tests.
+An individual coordinate has standard deviation $`\sqrt{Np(1-p)}`$ for counts, or $`\sqrt{p(1-p)/N}`$ for frequencies. Requiring **every** coordinate to be within an individual $`\pm3\sigma`$ interval ignores 6960 comparisons (a normal approximation would predict about $`6960\times0.0027\approx19`$ exceedances on average, without assuming coordinate independence). Counts here are discrete and skewed, so that normal estimate is only illustrative. For coordinate-level follow-up, use exact binomial tails with a multiple-comparison correction such as Bonferroni, or calibrate the maximum deviation globally by the same fixed-weight Monte Carlo model. Prespecify significance levels and account for multiple workloads / tests.
 
 Build & usage:
 
