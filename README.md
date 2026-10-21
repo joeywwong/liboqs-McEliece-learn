@@ -73,57 +73,9 @@ The implemented parameter sets target the following **NIST security categories**
 
 These are attack-cost targets, not categories established by these experiments or a claim of NIST standardization. Statistical randomness tests, CSPRNG security (including adequate seeding and unpredictability), uniform fixed-weight sampling, IND-CCA2 security, side-channel resistance, and formal verification are distinct properties requiring different evidence. NIST STS, Dieharder, chi-square tests, bit balance, and empirical byte frequencies cannot prove any of these cryptographic security properties or certify min-entropy. See also [NIST SP 800-22 Rev. 1a](https://csrc.nist.gov/pubs/sp/800/22/r1/upd1/final).
 
-### 5. Randomness Sources & Simple Measurement
+### Experimental Work
 
-Key generation and encapsulation require a cryptographically secure random source. `randombytes` maps to `OQS_randombytes` here. Under ideal independent uniform input bits, `gen_e`'s range rejection and rejection of duplicate indices produce a uniform weight-$`t`$ subset: every ordered sequence of distinct accepted indices is equally likely, and every subset has $`t!`$ orderings. A real CSPRNG supplies computational pseudorandomness; equal coordinate frequencies alone do not show uniformity over all $`\binom nt`$ subsets or independence between samples.
-
-#### 5.1 Implemented Internal Instrumentation for `e` Sampling
-
-Only `src/kem/classic_mceliece/pqclean_mceliece6960119_clean/encrypt.c` is instrumented, behind `OQS_MEASURE_E_RANDOMNESS`. The counters record accepted samples, coordinate frequencies, and restarts caused by duplicate indices. `restarts` excludes attempts with too few in-range indices, so it is not a count of all rejected attempts. Duplicate rejections need not be rare relative to accepted samples.
-
-For $`N>0`$ independent uniform weight-$`t`$ vectors, let $`f_i`$ be the count for coordinate $`i`$, $`p=t/n`$, and $`E=Np`$. Then
-
-```math
-\sum_i f_i=Nt,\qquad f_i\sim\mathrm{Binomial}(N,p),\qquad\mathrm{Var}(f_i)=Np(1-p).
-```
-
-Within each vector coordinates are negatively dependent; for $`i\ne j`$,
-
-```math
-\mathrm{Cov}(f_i,f_j)=-\frac{Np(1-p)}{n-1}.
-```
-
-The reported Pearson-style statistic is
-
-```math
-X_{\rm raw}^2=\sum_{i=0}^{n-1}\frac{(f_i-E)^2}{E},\qquad\mathbb E[X_{\rm raw}^2]=\frac{nNp(1-p)}{Np}=n-t.
-```
-
-Thus it is not the ordinary multinomial chi-square statistic. On the $`(n-1)`$-dimensional subspace $`\sum_i(f_i-E)=0`$, the covariance of $`(f-E)/\sqrt E`$ has eigenvalue $`(n-t)/(n-1)`$. The multivariate central limit theorem therefore gives, for fixed $`n`$ and $`0<t<n`$ as $`N\to\infty`$,
-
-```math
-X_{\rm adjusted}^2=\frac{n-1}{n-t}X_{\rm raw}^2\ \xrightarrow{d}\ \chi^2_{n-1}.
-```
-
-The raw expectation is exact under the null; the adjusted chi-square law is only asymptotic. Sparse counts, large $`n`$ relative to $`N`$, dependent samples, and repeated testing can undermine calibration. The dump reports `chi2_raw`, `expected_chi2_raw`, `chi2_adjusted`, and `asymptotic_df`; it does not compute a p-value or a security verdict.
-
-For **1,000 samples** at $`n=6960`$, $`t=119`$:
-
-- Total selections are exactly 119,000; $`E=119000/6960\approx17.10`$ per coordinate.
-- $`\mathbb E[X_{\rm raw}^2]=6841`$; $`\mathbb E[X_{\rm adjusted}^2]=6959`$ and the asymptotic degrees of freedom are 6959.
-- A maximum count of 7 is impossible: some count must be at least $`\lceil119000/6960\rceil=18`$. No measured min, max, zero count, restart count, or statistic is asserted here.
-
-Use a prespecified **global** test of coordinate balance, calibrated by the adjusted approximation only when justified, or by Monte Carlo: independently simulate many datasets of $`N`$ uniform weight-$`t`$ subsets, compute the same statistic, and compare the observation with that null distribution (e.g., upper-tail p-value $`(1+\#\{X_b\ge X_{\rm obs}\})/(B+1)`$ for $`B`$ simulations). Simulation must preserve fixed weight and use a trusted independent null sampler; it cannot repair dependence in the observed samples. Even this global frequency test cannot detect every nonuniform subset distribution or prove a CSPRNG secure.
-
-An individual coordinate has standard deviation $`\sqrt{Np(1-p)}`$ for counts, or $`\sqrt{p(1-p)/N}`$ for frequencies. Requiring **every** coordinate to be within an individual $`\pm3\sigma`$ interval ignores 6960 comparisons (a normal approximation would predict about $`6960\times0.0027\approx19`$ exceedances on average, without assuming coordinate independence). Counts here are discrete and skewed, so that normal estimate is only illustrative. For coordinate-level follow-up, use exact binomial tails with a multiple-comparison correction such as Bonferroni, or calibrate the maximum deviation globally by the same fixed-weight Monte Carlo model. Prespecify significance levels and account for multiple workloads / tests.
-
-Build & usage:
-
-1. Configure with `-DCMAKE_C_FLAGS="-DOQS_MEASURE_E_RANDOMNESS"` and the desired Classic McEliece algorithm enabled.
-2. Run a workload that actually calls the 6960119 **clean** implementation; other implementations do not update these counters.
-3. After the workload, manually declare and call `void oqs_mceliece_dump_e_randomness_stats(void);` in an internal test. It prints sample counts, duplicate restarts, expected coordinate count, min / max, zeros, and both statistics to `stderr`. The function has external linkage but no public header or supported KEM API.
-
-Instrumentation adds secret-dependent memory accesses and I/O. Use it only for controlled experiments, never production or constant-time / side-channel benchmarking. Normal builds exclude all instrumentation. Checks of exact weight, coordinate counts, or hash-output balance remain diagnostics; STS / Dieharder tests designed for unbiased bit streams should not be applied directly to the sparse, fixed-weight `e` vectors with an independent-fair-bit null model.
+Exploratory analysis of Classic McEliece error-vector sampling is maintained separately in the randomness-analysis branch.
 
 ---
 Below are the original README.md of the liboqs repo
